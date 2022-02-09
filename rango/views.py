@@ -8,6 +8,8 @@ from django.contrib.auth.decorators import login_required
 from rango.models import Category, Page
 from rango.forms import CategoryForm, PageForm, UserForm, UserProfileForm
 
+from datetime import datetime
+
 def index(request):
     # Query the database for a list of ALL categories currently stored.
     # Order the categories by the number of likes in descending order.
@@ -23,11 +25,22 @@ def index(request):
     context_dict['categories'] = category_list
     context_dict['pages'] = page_list
 
-    return render(request, 'rango/index.html', context=context_dict)
+    # Call the helper function to handle the cookies
+    visitor_cookie_handler(request)
+    #context_dict['visits'] = request.session['visits']
+
+    # Obtain our Response object early so we can add cookie information
+    response = render(request, 'rango/index.html', context=context_dict)
+
+    return response
 
 
 def about(request):
     context_dict = {'boldmessage': 'This tutorial has been put together by Iain McWhinnie.'}
+
+    # Call the helper function to handle the cookies
+    visitor_cookie_handler(request)
+    context_dict['visits'] = request.session['visits']
 
     return render(request, 'rango/about.html', context=context_dict)
 
@@ -237,3 +250,27 @@ def user_logout(request):
     # Take the user back to the homepage.
     return redirect(reverse('rango:index'))
 
+
+def get_sever_side_cookie(request, cookie, default_val=None):
+    val = request.session.get(cookie)
+    if not val:
+        val = default_val
+    return val
+
+def visitor_cookie_handler(request):
+    visits = int(get_sever_side_cookie(request,'visits','1'))
+
+    last_visit_cookie = get_sever_side_cookie(request, 'last_visit', str(datetime.now()))
+    last_visit_time = datetime.strptime(last_visit_cookie[:-7], '%Y-%m-%d %H:%M:%S')
+
+    # If it's been more than a day since the last visit...
+    if (datetime.now() - last_visit_time).days > 0:
+        visits = visits + 1
+        # Update the last visit cookie now that we have updated the count
+        request.session['last_visit'] = str(datetime.now())
+    else:
+        # Set the last visit cookie
+        request.session['last_visit'] = last_visit_cookie
+
+    # Update/set the visits cookie
+    request.session['visits'] = visits
